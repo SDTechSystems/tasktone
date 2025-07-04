@@ -1,0 +1,143 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  name         String
+  paypalEmail  String?  @map("paypal_email")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tasksAsUser   Task[]     @relation("UserTasks")
+  tasksAsWorker Task[]     @relation("WorkerTasks")
+  messages      Message[]
+  payments      Payment[]
+  payouts       WorkerPayout[]
+
+  @@map("users")
+}
+
+model Task {
+  id                  String     @id @default(cuid())
+  userId              String     @map("user_id")
+  workerId            String?    @map("worker_id")
+  title               String
+  description         String?
+  status              TaskStatus @default(PENDING)
+  originalAudioUrl    String     @map("original_audio_url")
+  processedAudioUrl   String?    @map("processed_audio_url")
+  durationMinutes     Float      @map("duration_minutes")
+  priceCents          Int        @map("price_cents")
+  claimedAt           DateTime?  @map("claimed_at")
+  deadline            DateTime?
+  submittedAt         DateTime?  @map("submitted_at")
+  approvedAt          DateTime?  @map("approved_at")
+  completedAt         DateTime?  @map("completed_at")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  user     User      @relation("UserTasks", fields: [userId], references: [id])
+  worker   User?     @relation("WorkerTasks", fields: [workerId], references: [id])
+  messages Message[]
+  payments Payment[]
+
+  @@map("tasks")
+}
+
+model Message {
+  id          String      @id @default(cuid())
+  taskId      String      @map("task_id")
+  senderId    String      @map("sender_id")
+  content     String
+  messageType MessageType @default(MESSAGE) @map("message_type")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  task   Task @relation(fields: [taskId], references: [id])
+  sender User @relation(fields: [senderId], references: [id])
+
+  @@map("messages")
+}
+
+model Payment {
+  id                     String        @id @default(cuid())
+  taskId                 String        @map("task_id")
+  userId                 String        @map("user_id")
+  amountCents            Int           @map("amount_cents")
+  stripePaymentIntentId  String?       @map("stripe_payment_intent_id")
+  status                 PaymentStatus @default(PENDING)
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("payments")
+}
+
+model WorkerPayout {
+  id               String       @id @default(cuid())
+  workerId         String       @map("worker_id")
+  weekEnding       DateTime     @map("week_ending") @db.Date
+  totalAmountCents Int          @map("total_amount_cents")
+  paypalEmail      String       @map("paypal_email")
+  status           PayoutStatus @default(PENDING)
+  paypalPayoutId   String?      @map("paypal_payout_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  worker User @relation(fields: [workerId], references: [id])
+
+  @@map("worker_payouts")
+}
+
+enum UserRole {
+  USER
+  WORKER
+}
+
+enum TaskStatus {
+  PENDING
+  CLAIMED
+  IN_PROGRESS
+  SUBMITTED
+  REVISION_REQUESTED
+  APPROVED
+  COMPLETED
+}
+
+enum MessageType {
+  MESSAGE
+  REVISION_REQUEST
+  SYSTEM
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
